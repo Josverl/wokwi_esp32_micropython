@@ -2,4 +2,4 @@
 .venv
 
 # optionally ignore the build folder
-# build
+build
