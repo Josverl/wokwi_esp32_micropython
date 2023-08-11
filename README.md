@@ -12,10 +12,30 @@ and adds a few changes
 - preconfigures serial port using the serial over TCP (rfc2217)
 
 Work in progress:
-
 - Support the rp2040 (Pi Pico)
 - Support additional ESP CPUs
 - mpremote over serial over TCP (rfc2217)
+
+## Editing Code
+All the code + assets that you want to use for the simulation needs to go under the `/src` folder.
+
+By default, there is a main.py file which is the one that will always run at the start of the simulation. You can split up your code into other files/modules, but in the end, main.py is what needs to orchestrate it all. If you need to reference any other files such as images/sounds, you can also place them in, or under, this folder.
+
+Once you're done adding your files, you'll then need to run the build command.
+
+### Hit Ctrl+Shift+B to build the filesystem and start the simulation.
+
+This command will--
+
+- Build a LittleFS filesystem image with all your files in there
+- Merge that filesystem image with the ESP32 MicroPython firmware
+- (re) Start the simulation
+
+> _Note: You need to run the build command after __each__ time that you edit any of the code, __before__ you rerun the simulation._
+
+Here's an example output for a successful run of the build command --
+
+![](.images/build_command.png)
 
 ## Setup
 
@@ -81,27 +101,6 @@ Note: While codespaces can be used 100% from the browser, withouth even installi
 
 The first time you do this it will take a couple of minutes as it grabs the latest docker image for the simulator and sets up the container environment. It should take <10seconds to reopen after that.
 
-## Editing Code
-
-All the code + assets that you want to use for the simulation needs to go under the `/src` folder.
-
-By default, there is a main.py file which is the one that will always run at the start of the simulation. You can split up your code into other files/modules, but in the end, main.py is what needs to orchestrate it all. If you need to reference any other files such as images/sounds, you can also place them in, or under, this folder.
-
-Once you're done adding your files, you'll then need to run the build command.
-
-### Hit Ctrl+Shift+B to build the filesystem and start the simulation.
-
-This command will--
-
-- Build a LittleFS filesystem image with all your files in there
-- Merge that filesystem image with the micropython firmware
-- (re) Start the simulation
-
-> _Note: You need to run the build command after __each__ time that you edit any of the code, __before__ you rerun the simulation._
-
-Here's an example output for a successful run of the build command --
-
-![](.images/build_command.png)
 
 ## Run Simulation
 
