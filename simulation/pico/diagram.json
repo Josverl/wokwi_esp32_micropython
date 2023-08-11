@@ -1,0 +1,67 @@
+{
+    "version": 1,
+    "author": "Anonymous maker",
+    "editor": "wokwi",
+    "parts": [
+        {
+            "type": "wokwi-pi-pico",
+            "id": "pico",
+            "top": 0,
+            "left": 0,
+            "attrs": {}
+        },
+        {
+            "type": "wokwi-led",
+            "id": "led1",
+            "top": -2.67,
+            "left": -65.33,
+            "attrs": {
+                "color": "red"
+            }
+        },
+        {
+            "type": "wokwi-led",
+            "id": "led2",
+            "top": 29.33,
+            "left": -97.8,
+            "attrs": {
+                "color": "red"
+            }
+        }
+    ],
+    "connections": [
+        [
+            "pico:GP5",
+            "led1:A",
+            "green",
+            [
+                "h0"
+            ]
+        ],
+        [
+            "pico:GND.2",
+            "led1:C",
+            "black",
+            [
+                "h0"
+            ]
+        ],
+        [
+            "pico:GND.2",
+            "led2:C",
+            "black",
+            [
+                "h0"
+            ]
+        ],
+        [
+            "pico:GP6",
+            "led2:A",
+            "green",
+            [
+                "h0"
+            ]
+        ]
+    ],
+    "dependencies": {}
+}
