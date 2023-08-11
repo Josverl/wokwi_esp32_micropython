@@ -1,19 +1,20 @@
 # Running Wokwi Simulations in Vscode
 
 This is an extension of the work done by ....
-and adds a few changes 
- - It can run using CodeSpaces
- - It can run without the need to install Docker Desktop (or a similar tool)
-   When using docker, the docker base is changed to standard ubuntu, rather than espresif's EDF SKD image. This reduces complexity and avoids errors when the EDF updates.
- - It supports nested folder structure underneath the `./src` folder.
- - The filesystem can be rebuilt, mounted and the emulater restarted with a single keypress (Ctrl-Shift-B) 
- - Adds syntax higlighting and static type checking for MicroPython Esp32 v1.20.0
- - preconfigures serial port using the serial over TCP (rfc2217) 
+and adds a few changes
 
+- It can run using CodeSpaces
+- It can run without the need to install Docker Desktop (or a similar tool)
+  When using docker, the docker base is changed to standard ubuntu, rather than espresif's IDF SKD image. This reduces complexity and avoids errors when the IDF updates (frequently).
+- It supports nested folder structure underneath the `./src` folder.
+- The filesystem can be rebuilt, mounted and the emulater restarted with a single keypress (Ctrl-Shift-B)
+- Adds syntax higlighting and static type checking for MicroPython Esp32 v1.20.0
+- preconfigures serial port using the serial over TCP (rfc2217)
 
-Work in progress: 
-- Support the rp2040 (Pi Pico) 
-- Support additional ESP CPUs 
+Work in progress:
+
+- Support the rp2040 (Pi Pico)
+- Support additional ESP CPUs
 - mpremote over serial over TCP (rfc2217)
 
 ## Setup
@@ -36,11 +37,14 @@ Once you have both of these setup, go ahead and clone this repo to your local fi
 >>> code .
 ```
 
-This repo uses devcontainers to minimize any setup/configuration asked from you. All you have to do after opening up the project in vscode is 
+This repo uses devcontainers to minimize any setup/configuration asked from you. All you have to do after opening up the project in vscode is
+
 - create a vitual environment(Python), or a devcontainer (if you have docker installed)
 - hit Ctrl+Shift+B.
 
-# using a python installation
+# Using a local Python installation
+
+The recommended way is to create a python virtual environment- but if you want you can skip to the `pip install` ( or `pip3 install` on Linux)
 
 ```bash
 >>> python -m venv .venv  # recommended when 
@@ -50,18 +54,36 @@ This repo uses devcontainers to minimize any setup/configuration asked from you.
 >>> pip install -r requirements-dev.txt
 ```
 
-Then hit Ctrl+Shift+B to build the filesystem and start the simulation.
 
-![](.images/create_virtual_environment.png)
 
-# Using Devcontainer and Docker 
+Then hit Ctrl+Shift+B to rebuild the filesystem and start the simulation.
+This is driven by a series of build [tasks]() that 
+
+# Using Codespaces
+
+Press F1  `codespaces new`
+
+![1691685032042](.images/new_codespace.png)
+
+Select the desired option to create a codespace(New, or Continue in New)
+After this youll need to answer a few question on the repo , and the size of the codespace.
+The the codespace will be created and the project will be cloned into it.
+
+VSCode will open the codespace and you can start working.
+
+
+Note: While codespaces can be used 100% from the browser, withouth even installing VSCode, I found that the WokWi emulator (beta) does not work in this setup.
+
+
+# Using Devcontainer and Docker
+
 ![](.images/reopen_in_container.png)
 
 The first time you do this it will take a couple of minutes as it grabs the latest docker image for the simulator and sets up the container environment. It should take <10seconds to reopen after that.
 
 ## Editing Code
 
-All the code + assets that you want to use for the simulation needs to go under the `/src` folder. 
+All the code + assets that you want to use for the simulation needs to go under the `/src` folder.
 
 By default, there is a main.py file which is the one that will always run at the start of the simulation. You can split up your code into other files/modules, but in the end, main.py is what needs to orchestrate it all. If you need to reference any other files such as images/sounds, you can also place them in, or under, this folder.
 
@@ -86,7 +108,7 @@ Here's an example output for a successful run of the build command --
 All the code for defining the simulation setup can be found in the `/simulation` folder.
 
 - wokwi.toml -- Sets up the simulation config. Do NOT edit.
-- diagram.json -- Sets up the simulation components and connections. The easiest way of getting started here is by using the graphical interface at <https://wokwi.com/> to generate/play around with the different components, then copy over the parts you want to run into the local diagram.json file and restart the simulation.
+- diagram.json -- Sets up the simulation components and connections. The easiest way of getting started here is by using the graphical interface at [https://wokwi.com/](https://wokwi.com/) to generate/play around with the different components, then copy over the parts you want to run into the local diagram.json file and restart the simulation.
 
 In order to run the simulation, you'll need to open the command palette back up using Ctrl+Shift+P and select the "Wokwi: Start Simulation" option.
 
