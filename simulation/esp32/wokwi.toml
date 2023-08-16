@@ -1,5 +1,5 @@
 [wokwi]
 version = 1
 firmware = '../../build/firmware_lfs.bin'
-elf = ''
+elf = '../empty.elf'
 rfc2217ServerPort = 4000

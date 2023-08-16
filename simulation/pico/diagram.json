@@ -1,7 +1,7 @@
 {
     "version": 1,
-    "author": "Anonymous maker",
-    "editor": "wokwi",
+    "author": "Jos Verlinde",
+    "editor": "VSCode",
     "parts": [
         {
             "type": "wokwi-pi-pico",
@@ -11,57 +11,51 @@
             "attrs": {}
         },
         {
-            "type": "wokwi-led",
-            "id": "led1",
-            "top": -2.67,
-            "left": -65.33,
+            "type": "wokwi-led-ring",
+            "id": "ring1",
+            "top": -25,
+            "left": 125,
             "attrs": {
-                "color": "red"
-            }
-        },
-        {
-            "type": "wokwi-led",
-            "id": "led2",
-            "top": 29.33,
-            "left": -97.8,
-            "attrs": {
-                "color": "red"
+                "pixels": "16",
+                "background": "black"
             }
         }
     ],
     "connections": [
         [
-            "pico:GP5",
-            "led1:A",
+            "ring1:DIN",
+            "pico:GP15",
             "green",
             [
-                "h0"
+                "v84.35",
+                "h-211.94",
+                "v-17.16"
             ]
         ],
         [
-            "pico:GND.2",
-            "led1:C",
+            "ring1:VCC",
+            "pico:VSYS",
+            "red",
+            [
+                "v49.69",
+                "h-86.34",
+                "v-155.3"
+            ]
+        ],
+        [
+            "ring1:GND",
+            "pico:GND.6",
             "black",
             [
-                "h0"
-            ]
-        ],
-        [
-            "pico:GND.2",
-            "led2:C",
-            "black",
-            [
-                "h0"
-            ]
-        ],
-        [
-            "pico:GP6",
-            "led2:A",
-            "green",
-            [
-                "h0"
+                "v39.69",
+                "h-96.74",
+                "v-39.7"
             ]
         ]
     ],
+    "serialMonitor": {
+        "display": "terminal",
+        "newline": "lf"
+    },
     "dependencies": {}
 }
