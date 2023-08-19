@@ -3,3 +3,4 @@
 
 # optionally ignore the build folder
 build
+**/__pycache__

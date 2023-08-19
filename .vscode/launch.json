@@ -13,6 +13,14 @@
             "MIMode": "gdb",
             "miDebuggerPath": "/opt/esp/tools/xtensa-esp-elf-gdb/12.1_20221002/xtensa-esp-elf-gdb/bin/xtensa-esp32-elf-gdb",
             "miDebuggerServerAddress": "localhost:3333"
-        }
+        },
+        {
+            "name": "CPython: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+        },
     ]
 }
