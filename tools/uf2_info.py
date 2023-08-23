@@ -2,15 +2,19 @@
 
 Display information of the UF2 file.
 - display information on the different parts of the UF2file
-- display the files in the file container.
+- find little fs file system in the UF2 file
+- find the different ranges in the UF2 file
+- find the different families in the UF2 file
+- find the binary information in the UF2 file ( rp2040 only, using picotool ) 
+
 """
 
 import ctypes
-import io
-import struct
+import re
+import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, Optional
 
 from uf2conv import UF2_MAGIC_START0  # is_uf2,
 from uf2conv import UF2_MAGIC_END, UF2_MAGIC_START1, load_families
@@ -37,10 +41,6 @@ flag_descriptions = {
 }
 
 LITTLEFS_MAGIC = b"\xF0\x0F\xFF\xF7littlefs/\xE0\x00\x10"
-LITTLEFS_STR = "\x03\x00\x00\x00\x0flittlefs/\x00\x10"
-
-appstartaddr = 0x2000
-familyid = 0x0
 
 
 # The UF2 file consists of 512 byte blocks, each of which is self-contained and independent of others.
@@ -82,11 +82,7 @@ class UF2Block(ctypes.LittleEndianStructure):
 
     @property
     def is_uf2_block(self):
-        return (
-            self.magicStart0 == UF2_MAGIC_START0
-            and self.magicStart1 == UF2_MAGIC_START1
-            and self.magicEnd == UF2_MAGIC_END
-        )
+        return self.magicStart0 == UF2_MAGIC_START0 and self.magicStart1 == UF2_MAGIC_START1 and self.magicEnd == UF2_MAGIC_END
 
 
 def print_flags(block: UF2_Block):
@@ -96,9 +92,7 @@ def print_flags(block: UF2_Block):
     for flag_value, flag_description in flag_descriptions.items():
         if flag_value & block.flags:
             if flag_value == UF2_FAMILY_ID_PRESENT:
-                print(
-                    f"   - {flag_description} : 0x{block.reserved:_X}"  #  == {get_family_name(families, block.reserved)}"
-                )
+                print(f"   - {flag_description} : 0x{block.reserved:_X}")  #  == {get_family_name(families, block.reserved)}"
             else:
                 print(f"   - {flag_description}")
     print(f" - {block.payloadSize=}")
@@ -117,6 +111,36 @@ class UF2File:
         # list of tuples (start, end) of the different ranges in the file
         self.known_families = load_families()
 
+        self.program_name = ""
+        self.binary_start = 0
+        self.binary_end = 0
+        self.drive_start = 0
+        self.drive_end = 0
+        self.board = ""
+
+        # appstartaddr = 0x2000
+
+    def print(self):
+        for i, family in enumerate(self.families):
+            print(f" - Family {i}: {family}")
+        print(f"Number of blocks: {len(self)}")
+        print(f"Number of ranges: {len(self.ranges)}")
+        for i, (start, end) in enumerate(self.ranges):
+            print(f" - Range {i}: 0x{start:08_X} - 0x{end:08_X}")
+        print(f"Number of LittleFS superblocks: {len(self.littlefs_superblocks)}")
+        for i, blockno in enumerate(self.littlefs_superblocks):
+            print(f" - LittleFS superblock {i}: block {blockno} at 0x{self.blocks[blockno].targetAddr:08_X}")
+        print(f"Number of families: {len(self.families)}")
+        for family, addr in self.families.items():
+            print(f" - Family {family} at 0x{addr:08_X}")
+
+        print(f"Program name: {self.program_name}")
+        print(f"Board: {self.board}")
+        # print(f"Binary start: {uff.binary_start:08_X}")
+        # print(f"Binary end: {uff.binary_end:08_X}")
+        print(f"Drive start: 0x{self.drive_start:08_X}")
+        print(f"Drive end: 0x{self.drive_end:08_X}")
+
     def get_family_name(self, family_hex):
         family_short_name = ""
         for name, value in self.known_families.items():
@@ -124,12 +148,12 @@ class UF2File:
                 family_short_name = name
         return family_short_name
 
-    def read_uf2(self, file):
-        # self._file = file
+    def read_uf2(self, filepath: Path):
+        self.uf2_file = filepath
         # self._buffer = b''
         # self._pos = 0
         # read UF2 blocks from the file and populate the blocks attribute
-        with open(file, "rb") as f:
+        with open(filepath, "rb") as f:
             while True:
                 data = f.read(ctypes.sizeof(UF2Block))
                 if not data:
@@ -163,26 +187,21 @@ class UF2File:
         end_range = 0
         # iterate over the blocks and check if the block is a range start or end
         # add the start and end addresses of the range to the ranges list
-        # use an iterator to iterate over the blocks
-        for i, block in enumerate(self.blocks):
+        for block in self.blocks:
             if start_range == 0:
                 start_range = block.targetAddr
                 last_address = block.targetAddr + block.payloadSize
+            elif last_address != block.targetAddr or block.data[: block.payloadSize] == b"\x00" * block.payloadSize:
+                # gap detected, end of range
+                # is the block all 0x00?
+                # block is all 0x00, end of range
+                end_range = last_address
+                self.ranges.append((start_range, end_range))
+                start_range = block.targetAddr
+                end_range = 0
             else:
-                if (
-                    last_address != block.targetAddr
-                    or block.data[: block.payloadSize] == b"\x00" * block.payloadSize
-                ):
-                    # gap detected, end of range
-                    # is the block all 0x00?
-                    # block is all 0x00, end of range
-                    end_range = last_address
-                    self.ranges.append((start_range, end_range))
-                    start_range = block.targetAddr
-                    end_range = 0
-                else:
-                    # next block in the range leaves no gap
-                    last_address = block.targetAddr + block.payloadSize
+                # next block in the range leaves no gap
+                last_address = block.targetAddr + block.payloadSize
 
         # add the last range
         end_range = last_address
@@ -191,9 +210,7 @@ class UF2File:
     def scan_littlefs(self):
         for block in self.blocks:
             if block.targetAddr % 4096 == 0 and LITTLEFS_MAGIC in bytes(block.data):
-                print(
-                    f" > Found LittleFS file system header in block {block.blockNo} at 0x{block.targetAddr:08_X}"
-                )
+                print(f" > Found LittleFS file system header in block {block.blockNo} at 0x{block.targetAddr:08_X}")
                 self.littlefs_superblocks.append(block.blockNo)
                 # print("  0x{:08_X} : {}".format(newaddr, "littlefs"))
                 # // The superblock for littlefs is in both block 0 and 1, but block 0 may be erased
@@ -209,44 +226,60 @@ class UF2File:
                     self.families[fam_name] = block.targetAddr
                 else:
                     # store lowest address for this family
-                    self.families[fam_name] = min(
-                        self.families[fam_name], block.targetAddr
-                    )
+                    self.families[fam_name] = min(self.families[fam_name], block.targetAddr)
 
+    def parse_output(
+        self,
+        output,
+        qry,
+    ) -> str:
+        return match[1] if (match := re.search(qry, output)) else "42"
 
-#             if all_flags_same:
-#                 print("All block flag values consistent, 0x{:04x}".format(hd[2]))
-#             else:
-#                 print("Flags were not all the same")
-#             print("----------------------------")
-#             if len(families_found) > 1 and familyid == 0x0:
-#                 outp = []
-#                 appstartaddr = 0x0
+    def add_bin_info(self, uf2_file: Optional[Path] = None):
+        # sourcery skip: extract-method
+        # read the binary information using picotool and add the information to the class
+
+        # supplied or previously read uf2 file
+        uf2_file = uf2_file or self.uf2_file
+        if not uf2_file:
+            print("No UF2 file loaded")
+            return
+        if "RP2040" in self.families.keys():
+            # use picotool to read the binary information
+            picopath = Path(__file__).parent / "picotool"
+            result = subprocess.run(
+                [picopath, "info", "-a", str(self.uf2_file)],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0:
+                self.program_name = self.parse_output(result.stdout, r"\s+name:\s+(\w+)")
+                self.board = self.parse_output(result.stdout, r"\s+pico_board:\s+(\w+)")
+                # convert from hex_string to int
+                self.binary_start = int(self.parse_output(result.stdout, r"binary start:\s+(0[xX][0-9a-fA-F]+)"), 16)
+                self.binary_end = int(self.parse_output(result.stdout, r"binary end:\s+(0[xX][0-9a-fA-F]+)"), 16)
+                self.drive_start = int(self.parse_output(result.stdout, r"embedded drive:\s+(0[xX][0-9a-fA-F]+)"), 16)
+                self.drive_end = int(
+                    self.parse_output(
+                        result.stdout,
+                        r"embedded drive:\s+0[xX][0-9a-fA-F]+-(0[xX][0-9a-fA-F]+)",
+                    ),
+                    16,
+                )
 
 
 def main():
     file_name = "tools\\pico-w.uf2" if len(sys.argv) <= 1 else sys.argv[1]
     # file_name = "firmware\\rp2-pico-20230426-v1.20.0.uf2"
+    # file_name = "firmware\\SEEED_WIO_TERMINAL-20230426-v1.20.0.uf2"
     filename = Path(file_name)
     # dump_uf2_file(filename)
 
     uff = UF2File()
     uff.read_uf2(filename)
+    uff.add_bin_info()
 
-    for i, family in enumerate(uff.families):
-        print(f" - Family {i}: {family}")
-    print(f"Number of blocks: {len(uff)}")
-    print(f"Number of ranges: {len(uff.ranges)}")
-    for i, (start, end) in enumerate(uff.ranges):
-        print(f" - Range {i}: 0x{start:08_X} - 0x{end:08_X}")
-    print(f"Number of LittleFS superblocks: {len(uff.littlefs_superblocks)}")
-    for i, blockno in enumerate(uff.littlefs_superblocks):
-        print(
-            f" - LittleFS superblock {i}: block {blockno} at 0x{uff.blocks[blockno].targetAddr:08_X}"
-        )
-    print(f"Number of families: {len(uff.families)}")
-    for family, addr in uff.families.items():
-        print(f" - Family {family} at 0x{addr:08_X}")
+    uff.print()
 
 
 # ports\rp2\rp2_flash.c
