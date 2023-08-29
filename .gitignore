@@ -3,4 +3,9 @@
 
 # optionally ignore the build folder
 build
+
 **/__pycache__
+
+tools/_*
+
+%repos%wokwi_esp32_micropython/chat_history/history.sqlite
