@@ -1,3 +1,15 @@
+loguru ~= 0.7.0
+
+# Filesystem
 littlefs-python ~= 0.6.2
-esptool
+
+# to merge esp firmware with littelfs.img
+esptool ~= 4.6.0	
+
+
+# rfc2217 serial over tcp 
+mpremote ~= 1.20.0.post349+ged5bed995.d20230811
+
+
+# micropython type stubs
 micropython-esp32-stubs ~= 1.20.0
