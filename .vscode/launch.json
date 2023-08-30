@@ -19,6 +19,33 @@
             "type": "python",
             "request": "launch",
             "program": "${file}",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                // "firmware\\SEEED_WIO_TERMINAL-20230426-v1.20.0.uf2",
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true,
+        },
+        {
+            "name": "pico-w",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args": [
+                "tools/pico-w.bin",
+            ],
+            "justMyCode": true,
+        },
+        {
+            "name": "uf2conv",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "args": [
+                "D:\\repos\\wokwi_esp32_micropython\\firmware\\rp2-pico-20230426-v1.20.0.uf2",
+                "--info"
+            ],
             "console": "integratedTerminal",
             "justMyCode": true,
         },
