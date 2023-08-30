@@ -4,7 +4,7 @@
     "editor": "VSCode",
     "parts": [
         {
-            "type": "wokwi-pi-pico",
+            "type": "board-pi-pico-w",
             "id": "pico",
             "top": 0,
             "left": 0,
