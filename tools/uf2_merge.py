@@ -9,6 +9,7 @@ Display information of the UF2 file.
 
 """
 
+import argparse
 import ctypes
 import re
 import struct
@@ -18,9 +19,13 @@ from collections import UserList
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
+from loguru import logger as log
 from uf2conv import UF2_MAGIC_START0  # is_uf2,
 from uf2conv import UF2_MAGIC_END, UF2_MAGIC_START1, load_families
 
+# --------------------------------------------------------------
+# UF2 file format
+# --------------------------------------------------------------
 UF2_NOFLASH = 0x00000001
 # If set, the block is "comment" and should not be flashed to the device
 UF2_FILE_CONTAINER = 0x00001000
@@ -33,6 +38,7 @@ UF2_EXTENSION_TAGS_PRESENT = 0x00008000
 # when set, the file container contains tags
 
 UF2_BLOCK_SIZE = 512
+UF2_DATA_SIZE = 476  # 512 - 32 - 4
 
 flag_descriptions = {
     UF2_NOFLASH: "Do not flash to device",
@@ -42,14 +48,18 @@ flag_descriptions = {
     UF2_EXTENSION_TAGS_PRESENT: "Extension tags present",
 }
 
+try:
+    KNOWN_FAMILIES = load_families()
+except FileNotFoundError:
+    log.warning("Families file not found")
+    KNOWN_FAMILIES = {}
+
 
 # Used to find the start of the littlefs file system
 LITTLEFS_MARKER = b"\xF0\x0F\xFF\xF7littlefs/\xE0\x00\x10"
 
-KNOWN_FAMILIES = load_families()
 
-
-class UF2_Block(ctypes.LittleEndianStructure):
+class UF2Block(ctypes.LittleEndianStructure):
     """A block in a UF2 file with the following structure:"""
 
     _pack_ = 1
@@ -62,7 +72,7 @@ class UF2_Block(ctypes.LittleEndianStructure):
         ("blockNo", ctypes.c_uint32),  # 5
         ("numBlocks", ctypes.c_uint32),  # 6
         ("reserved", ctypes.c_uint32),  # 7
-        ("data", ctypes.c_uint8 * 476),
+        ("data", ctypes.c_uint8 * UF2_DATA_SIZE),
         ("magicEnd", ctypes.c_uint32),  # -1
     ]
 
@@ -73,28 +83,30 @@ class UF2_Block(ctypes.LittleEndianStructure):
         self.magicStart1 = UF2_MAGIC_START1
         self.magicEnd = UF2_MAGIC_END
         if data:
-            if len(data) > 476:
+            if len(data) > UF2_DATA_SIZE:
                 raise ValueError(f"Data too long: {len(data)}")
             # copy the data to the data field, padded with 0x00
-            self.data = (ctypes.c_uint8 * 476).from_buffer_copy(data + b"\0" * (478 - len(data)))
+            self.data = (ctypes.c_uint8 * UF2_DATA_SIZE).from_buffer_copy(data + b"\0" * (UF2_DATA_SIZE - len(data)))
 
     @property
     def is_uf2_block(self):
         """Check if the block is a valid UF2 block"""
         return self.magicStart0 == UF2_MAGIC_START0 and self.magicStart1 == UF2_MAGIC_START1 and self.magicEnd == UF2_MAGIC_END
 
-    # def print_flags(self):
-    #     print(f" - {self.blockNo=}")
-    #     print(f" - {self.flags=:0b}")
-    #     # iterate over the flag descriptions and print the ones that match the flags in this_flag
-    #     for flag_value, flag_description in flag_descriptions.items():
-    #         if flag_value & self.flags:
-    #             if flag_value == UF2_FAMILY_ID_PRESENT:
-    #                 print(f"   - {flag_description} : 0x{self.reserved:_X}")  #  == {get_family_name(families, block.reserved)}"
-    #             else:
-    #                 print(f"   - {flag_description}")
-    #     print(f" - {self.payloadSize=}")
-    #     print(f" - {self.numBlocks=}")
+    def __str__(self) -> str:
+        """Return a string representation of the UF2 block - specifically the flags"""
+        result = ""
+        result += f" - blockNo={self.blockNo}\n"
+        result += f" - flags={self.flags:0b}\n"
+        for flag_value, flag_description in flag_descriptions.items():
+            if flag_value & self.flags:
+                if flag_value == UF2_FAMILY_ID_PRESENT:
+                    result += f"   - {flag_description} : 0x{self.reserved:_X}\n"
+                else:
+                    result += f"   - {flag_description}\n"
+        result += f" - payloadSize={self.payloadSize}\n"
+        result += f" - numBlocks={self.numBlocks}\n"
+        return result
 
 
 class UF2File(UserList):
@@ -172,10 +184,10 @@ class UF2File(UserList):
     def __iter__(self):
         return iter(self.data)
 
-    def __setitem__(self, index, item: UF2_Block):
+    def __setitem__(self, index, item: UF2Block):
         self.data[index] = item
 
-    def insert(self, index, item: UF2_Block):
+    def insert(self, index, item: UF2Block):
         self.data.insert(index, item)
 
     def read_uf2(self, filepath: Path):
@@ -183,10 +195,10 @@ class UF2File(UserList):
         self.file_path = filepath
         with open(filepath, "rb") as f:
             while True:
-                data = f.read(ctypes.sizeof(UF2_Block))
+                data = f.read(ctypes.sizeof(UF2Block))
                 if not data:
                     break
-                block = UF2_Block.from_buffer_copy(data)
+                block = UF2Block.from_buffer_copy(data)
                 if not block.is_uf2_block:
                     print(f"Skipping block {block.blockNo}; bad magic")
                     continue
@@ -213,14 +225,14 @@ class UF2File(UserList):
     #     uf2_file.scan_littlefs()
     #     return uf2_file
 
-    def append(self, block: UF2_Block):
+    def append(self, block: UF2Block):
         "append a UF2 block to the data attribute"
         if self.data and block.targetAddr < self.data[-1].targetAddr + self.data[-1].payloadSize:
             raise ValueError(f"Block {block.blockNo} at 0x{block.targetAddr:08_X} is before the last block")
         block.blockNo = len(self.data)
         self.data.append(block)
 
-    def extend(self, other: Iterable[UF2_Block]):
+    def extend(self, other: Iterable[UF2Block]):
         "extend the data attribute with a list of UF2 blocks"
         for block in other:
             self.append(block)
@@ -359,11 +371,25 @@ class UF2File(UserList):
                 )
 
 
-def convert_to_uf2(file_content, familyid: int, start_addr: int) -> UF2File:
+def read_image(littlefs_img, firmware_uf2: UF2File) -> UF2File:
+    """Read the contents of the littlefs_img file, create a new UF2File object, and iterate over the contents of the file in chunks of 256 bytes.
+    For each chunk, create a new UF2Block object, set its properties, and append it to the UF2File object.
+    Finally, set the numBlocks and blockNo properties of each block,  and returns it.
+    """
+    CHUNK_SIZE = 256
+    CHUNK_SIZE = UF2_DATA_SIZE
+    assert CHUNK_SIZE <= UF2_DATA_SIZE
+    log.info(f"Reading littlefs binary image from {littlefs_img}")
+
+    with open(littlefs_img, "rb") as f:
+        littlefs_img = f.read()
+    familyid = firmware_uf2.family_id
+    start_addr = firmware_uf2.drive_start
+
     uf2_file = UF2File()
-    for i in range(0, len(file_content), 256):
-        chunk = file_content[i : i + 256]
-        block = UF2_Block(chunk)
+    for i in range(0, len(littlefs_img), CHUNK_SIZE):
+        chunk = littlefs_img[i : i + CHUNK_SIZE]
+        block = UF2Block(chunk)
         block.flags = 0x0
         if familyid:
             block.flags |= 0x2000
@@ -374,68 +400,71 @@ def convert_to_uf2(file_content, familyid: int, start_addr: int) -> UF2File:
     for i, block in enumerate(uf2_file):
         block.numBlocks = len(uf2_file)
         block.blockNo = i
+
+    log.debug(f"LittleFS image size: {len(uf2_file)} blocks")
     return uf2_file
 
 
-def read_image(littlefs_img, firmware_uf2):
-    print(f"Reading littlefs image from {littlefs_img}")
-
-    with open(littlefs_img, "rb") as f:
-        littlefs_img = f.read()
-
-    fam_str = list(firmware_uf2.families.keys())[0]
-    result = convert_to_uf2(littlefs_img, KNOWN_FAMILIES[fam_str], firmware_uf2.drive_start)
-    return result
-
-
 def main(
-    file_name="firmware\\rp2-pico-20230426-v1.20.0.uf2",
-    littlefs_img=Path("build\\littlefs.img"),
-    out_path=Path("build\\pico_src.uf2"),
+    base: Path,
+    littlefs_img: Path,
+    out_path: Path,
 ):
-    # file_name = "firmware\\rp2-pico-w-20230426-v1.20.0.uf2" if len(sys.argv) <= 1 else sys.argv[1]
-    # file_name = "firmware\\SEEED_WIO_TERMINAL-20230426-v1.20.0.uf2"
-    file_path = Path(file_name)
-
-    # dump_uf2_file(filename)
-
-    # out_path = None
-
-    firmware_uf2 = UF2File()
-    firmware_uf2.read_uf2(file_path)
-    firmware_uf2.add_bin_info()
-    print(firmware_uf2)
+    # Base file should be a firmware uf2 file
+    base_uf2 = UF2File()
+    base_uf2.read_uf2(base)
+    base_uf2.add_bin_info()
+    log.debug(base_uf2)
 
     littelfs_uf2 = None
     # read the littlefs image from build folder
     if littlefs_img and littlefs_img.exists():
-        littelfs_uf2 = read_image(littlefs_img, firmware_uf2)
+        littelfs_uf2 = read_image(littlefs_img, base_uf2)
+
+    # if littelfs_uf2:
+    #     # write to file
+    #     log.info(f"Writing {len(littelfs_uf2)} blocks to build\\littlefs.uf2")
+    #     with open("build\\littlefs.uf2", "wb") as f:
+    #         for block in littelfs_uf2:
+    #             f.write(block)
+
     if littelfs_uf2:
-        # write to file
-        with open("build\\littlefs.uf2", "wb") as f:
-            for block in littelfs_uf2:
-                f.write(block)
-
         # add the littlefs image to the uf2 file
-        firmware_uf2.extend(littelfs_uf2)
+        base_uf2.extend(littelfs_uf2)
 
-    foo = UF2_Block("foo".encode())
+    foo = UF2Block("foo".encode())
     foo.targetAddr = 0x1020_0000
     foo.payloadSize = 256
 
-    firmware_uf2.append(foo)
+    base_uf2.append(foo)
 
     if out_path:
-        # write the new uf2 file
-
-        firmware_uf2.scan()
-        print(f"Writing {len(firmware_uf2)} blocks to {out_path}")
-        print(firmware_uf2)  # print the new uf2 file
+        base_uf2.scan()
+        log.debug(f"Writing {len(base_uf2)} blocks to {out_path}")
+        log.debug(base_uf2)  # print the new uf2 file
 
         with open(out_path, "wb") as f:
-            for block in firmware_uf2:
+            for block in base_uf2:
                 f.write(block)
 
 
 if __name__ == "__main__":
-    main()
+    # setup logging
+    log.remove()
+    log.add(sys.stderr, format="<level>{level:10}</level>| <cyan>{message}</cyan>", level="DEBUG")
+
+    # commence
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--base", help="the path to the base UF2 file", required=False)
+    parser.add_argument("--littlefs_img", help="the path to the LittleFS image file", required=False)
+    parser.add_argument("--out_path", help="the path to the output UF2 file", required=False)
+    args = parser.parse_args()
+
+    log.debug(args)
+    # defaults
+    args.base = Path(args.base or "firmware\\rp2-pico-20230426-v1.20.0.uf2")
+    args.littlefs_img = Path(args.littlefs_img or "build\\littlefs.img")
+    args.out_path = Path(args.out_path or "build\\pico_src.uf2")
+
+    main(base=args.base, littlefs_img=args.littlefs_img, out_path=args.out_path)
