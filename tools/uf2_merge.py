@@ -423,7 +423,7 @@ def merge_uf2_littlefs(firmware_uf2: Path, littlefs_img: Path, out_path: Path, s
         littelfs_uf2 = read_image(littlefs_img, base_uf2, chunk_size)
 
     if littelfs_uf2 and save_littlefs:
-        vfs_path = out_path.with_suffix(".uf2")
+        vfs_path = littlefs_img.with_suffix(".uf2")
         # write to file
         log.info(f"Writing {len(littelfs_uf2)} blocks to {vfs_path.name}")
         with open(vfs_path, "wb") as f:
@@ -433,12 +433,6 @@ def merge_uf2_littlefs(firmware_uf2: Path, littlefs_img: Path, out_path: Path, s
     if littelfs_uf2:
         # add the littlefs image to the uf2 file
         base_uf2.extend(littelfs_uf2)
-
-    foo = UF2Block("foo".encode())
-    foo.targetAddr = 0x1020_0000
-    foo.payloadSize = 256
-
-    base_uf2.append(foo)
 
     if out_path:
         base_uf2.scan()
@@ -468,7 +462,8 @@ def parse_args():
     )
     out_path = os.environ.get(
         "OUTPUT_PATH",
-        "build\\pico_src.uf2",
+        ""
+        # "build\\pico_src.uf2",
     )
 
     # override defaults with command line arguments
