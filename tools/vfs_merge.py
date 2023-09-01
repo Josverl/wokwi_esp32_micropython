@@ -2,10 +2,12 @@ import argparse
 import os
 import platform
 import subprocess
+import sys
 from pathlib import Path
 
 from create_littlefs import folder_to_lfs
 from diskportinfo import port_info_list
+from loguru import logger as log
 from uf2_merge import merge_uf2_littlefs
 
 
@@ -21,7 +23,7 @@ def get_disk_info(port: str):
     return None
 
 
-def esptool_merge(output_bin: Path, firmware_bin: Path, littlefs_img: Path, flash_size="4MB"):
+def esptool_merge(output_bin: Path, firmware_bin: Path, littlefs_img: Path, littlefs_address=0x200000, flash_size="4MB"):
     """\
     Merge the firmware and littlefs image into a single binary.
     
@@ -30,28 +32,29 @@ def esptool_merge(output_bin: Path, firmware_bin: Path, littlefs_img: Path, flas
 
     https://docs.espressif.com/projects/esptool/en/latest/esp32/esptool/basic-commands.html?highlight=merge_bin#merge-binaries-for-flashing-merge-bin
     """
-
+    log.info(f"Merge firmware and littlefs image into {output_bin}")
     command = [
         "esptool",
         "--chip",
         "esp32",
         "merge_bin",
         "-o",
-        output_bin,
+        str(output_bin),
         "--flash_mode",
         "dio",
         "--flash_size",
         flash_size,
         "0x1000",
-        firmware_bin,
-        "0x200000",
-        littlefs_img,
+        str(firmware_bin),
+        f"0x{littlefs_address:08x}",
+        str(littlefs_img),
     ]
+    log.debug("running: " + " ".join(command))
     try:
         subprocess.run(command, check=True)
         return True
     except subprocess.CalledProcessError as e:
-        print(f"Error: {e}")
+        log.exception(e)
         return False
 
 
@@ -70,17 +73,17 @@ def main(source_path: Path, firmware_path: Path, port: str, build_path: Path):
 
     port = firmware_port(port, firmware_path)
 
-    print("Source folder path:", source_path)
-    print("Firmware path:", firmware_path)
-    print("Micropython Port:", port)
+    log.info("Source folder path:", source_path)
+    log.info("Firmware path:", firmware_path)
+    log.info("Micropython Port:", port)
 
     disk_info = get_disk_info(port)
     if not disk_info:
-        print(f"Port {port} not found")
+        log.error(f"Port {port} not found")
         return
     # create littlefs image for this port
     littlefs_image = build_path / "littlefs.img"
-    print(f"Create littlefs image: {littlefs_image}")
+    log.info(f"Create littlefs image: {littlefs_image}")
 
     try:
         folder_to_lfs(
@@ -91,7 +94,7 @@ def main(source_path: Path, firmware_path: Path, port: str, build_path: Path):
             block_count=disk_info.block_count,
         )
     except Exception as e:
-        print(f"Error: {e}")
+        log.exception(e)
         return
     # now merge the firmware and littlefs image into a single binary
     # this is different for each finary format
@@ -100,6 +103,7 @@ def main(source_path: Path, firmware_path: Path, port: str, build_path: Path):
             firmware_bin=firmware_path,
             littlefs_img=littlefs_image,
             output_bin=build_path / "firmware_lfs.bin",
+            littlefs_address=disk_info.start_address,
         )
     elif port.startswith("rp2"):
         merge_uf2_littlefs(
@@ -130,5 +134,9 @@ def parse_cmdline():
 
 
 if __name__ == "__main__":
+    # setup logging
+    log.remove()
+    log.add(sys.stderr, format="<level>{level:10}</level>| <cyan>{message}</cyan>", level="DEBUG")
+    # go
     args = parse_cmdline()
     main(args.source, args.firmware, args.port, args.build)

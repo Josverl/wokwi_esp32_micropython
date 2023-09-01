@@ -1,13 +1,13 @@
 import argparse
 import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List
 
+from diskportinfo import VFLASH_BLOCK_SIZE, VFS_LFS1, VFS_LFS2, port_info_list
 from littlefs import LittleFS
-from diskportinfo import port_info_list, VFS_LFS1, VFS_LFS2, VFLASH_BLOCK_SIZE
-
-
+from loguru import logger as log
 
 
 def folder_to_lfs(
@@ -26,7 +26,7 @@ def folder_to_lfs(
     - image: destination image file
     - disk_version: LittleFS File System Version 0x0002_0000 needed by micropython builds @v1.20.0
     """
-    print(f"Create new filesystem with: {block_count} blocks of {block_size} bytes = {int(block_count*block_size/1024)}Kb")
+    log.debug(f"Create new filesystem with: {block_count} blocks of {block_size} bytes = {int(block_count*block_size/1024)}Kb")
     fs = LittleFS(
         block_size=block_size,
         block_count=block_count,
@@ -34,20 +34,20 @@ def folder_to_lfs(
         disk_version=disk_version,
     )
     source_path = Path(source)
-    print(f"Add files from {source_path}")
+    log.info(f"Add files from {source_path}")
     for filename in source_path.rglob("*"):
         lfs_fname = f"/{filename.relative_to(source_path).as_posix()}"
         if filename.is_file():
             with open(filename, "rb") as src_file:
                 # use the relative path to source as the littlefs filename
-                print(f"Adding {lfs_fname}")
+                log.debug(f"Adding {lfs_fname}")
                 with fs.open(lfs_fname, "wb") as lfs_file:
                     lfs_file.write(src_file.read())
         elif filename.is_dir():
             fs.mkdir(lfs_fname)
     # verify
 
-    print(f"write filesystem to {target}")
+    log.debug(f"write filesystem to {target}")
     with open(target, "wb") as fh:
         fh.write(fs.context.buffer)
     return True
@@ -59,14 +59,14 @@ def folder_to_lfs(
 def main(port_name: str):
     port_info = next((p for p in port_info_list if p.name.lower() == port_name.lower()), None)
     if not port_info:
-        print(f"Port {port_name} not found")
+        log.error(f"Port {port_name} not found")
         return
 
     page_size = port_info.page_size
     block_size = port_info.block_size
     block_count = port_info.block_count
     image_size = port_info.image_size
-    print(f"Port: {port_name}, PageSize: {page_size}, BlockSize: {block_size}, BlockCount: {block_count}, ImageSize: {int(image_size/1024)}Kb")
+    log.debug(f"Port: {port_name}, PageSize: {page_size}, BlockSize: {block_size}, BlockCount: {block_count}, ImageSize: {int(image_size/1024)}Kb")
 
     # location of workspace
     workspace_dir = Path(__file__).parent.parent.absolute()
@@ -87,6 +87,10 @@ def main(port_name: str):
 
 
 if __name__ == "__main__":
+    # setup logging
+    log.remove()
+    log.add(sys.stderr, format="<level>{level:10}</level>| <cyan>{message}</cyan>", level="DEBUG")
+    # go
     parser = argparse.ArgumentParser()
     parser.add_argument("-p", "--port", "--port-board", help="the name of the port and board to build for (rp2-pico, esp32-generic)")
     args = parser.parse_args()

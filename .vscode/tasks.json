@@ -5,7 +5,7 @@
     "options": {
         "cwd": "${workspaceFolder}",
         "env": {
-            "PORT": "rp2-pico",
+            "PORT": "rp2-pico-w",
         }
     },
     "tasks": [
@@ -40,6 +40,12 @@
                 "isDefault": true
             },
             "problemMatcher": []
+        },
+        {
+            "type": "Live Preview",
+            "workspacePath": "d:\\repos\\wokwi_esp32_micropython",
+            "problemMatcher": [],
+            "label": "Live Preview: Run Server"
         }
     ]
 }

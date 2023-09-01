@@ -202,7 +202,7 @@ class UF2File(UserList):
                     break
                 block = UF2Block.from_buffer_copy(data)
                 if not block.is_uf2_block:
-                    print(f"Skipping block {block.blockNo}; bad magic")
+                    log.warning(f"Skipping block {block.blockNo}; bad magic")
                     continue
                 self.data.append(block)
         self.scan()
@@ -309,7 +309,7 @@ class UF2File(UserList):
     def scan_littlefs(self):
         for block in self.data:
             if block.targetAddr % 4096 == 0 and LITTLEFS_MARKER in bytes(block.data):
-                print(f" > Found LittleFS file system header in block {block.blockNo} at 0x{block.targetAddr:08_X}")
+                log.info(f" > Found LittleFS file system header in block {block.blockNo} at 0x{block.targetAddr:08_X}")
                 self.littlefs_superblocks.append(block.blockNo)
                 # print("  0x{:08_X} : {}".format(newaddr, "littlefs"))
                 # // The superblock for littlefs is in both block 0 and 1, but block 0 may be erased
@@ -341,23 +341,27 @@ class UF2File(UserList):
         # supplied or previously read uf2 file
         uf2_file = uf2_file or self.file_path
         if not uf2_file:
-            print("No UF2 file loaded")
+            log.warning("No UF2 file loaded")
             return
         if "RP2040" in self.families.keys():
             # use picotool to read the binary information
             # shell=true allows same command for Linux & Windows
             picopath = Path(__file__).parent / "picotool"
+            cmd = f"{picopath} info -a {uf2_file}"
+            log.debug(f"Running {cmd}")
             try:
                 result = subprocess.run(
-                    [picopath, "info", "-a", str(self.file_path)],
+                    cmd,
                     capture_output=True,
                     text=True,
                     shell=True,
                 )
-            except OSError:
-                print("picotool not found")
+            except OSError as e:
+                log.error("picotool not found")
+                log.exception(e)
                 return
             if result.returncode == 0:
+                # parse the output of picotool
                 self.program_name = self.parse_output(result.stdout, r"\s+name:\s+(\w+)")
                 self.board = self.parse_output(result.stdout, r"\s+pico_board:\s+(\w+)")
                 # convert from hex_string to int
@@ -462,8 +466,7 @@ def parse_args():
     )
     out_path = os.environ.get(
         "OUTPUT_PATH",
-        ""
-        # "build\\pico_src.uf2",
+        "build\\pico_src.uf2",
     )
 
     # override defaults with command line arguments
