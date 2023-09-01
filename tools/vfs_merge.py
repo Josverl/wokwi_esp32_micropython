@@ -73,9 +73,10 @@ def main(source_path: Path, firmware_path: Path, port: str, build_path: Path):
 
     port = firmware_port(port, firmware_path)
 
-    log.info("Source folder path:", source_path)
-    log.info("Firmware path:", firmware_path)
-    log.info("Micropython Port:", port)
+    log.info(f"Micropython Port: {port}")
+    log.info(f"Source folder path: {source_path}")
+    log.info(f"Firmware path: {firmware_path}")
+    log.info(f"Build path: {build_path}")
 
     disk_info = get_disk_info(port)
     if not disk_info:
@@ -116,20 +117,33 @@ def main(source_path: Path, firmware_path: Path, port: str, build_path: Path):
 
 
 def parse_cmdline():
-    parser = argparse.ArgumentParser(description="Merse source code and firmware into a single file.")
-    parser.add_argument("--port", type=str, help="port", default=os.environ.get("PORT", "auto"))
-    parser.add_argument("--source", type=str, help="source folder path", default="./src")
-    parser.add_argument("--firmware", type=str, help="firmware path", default="auto")
-    parser.add_argument("--build", type=str, help="build folder", default="./build")
+    parser = argparse.ArgumentParser(description="Merge source code and firmware into a single file.")
+    parser.add_argument("--port", "-p", type=str, help="port", default=os.environ.get("PORT", "auto"))
+    parser.add_argument("--source", "-s", type=str, help="source folder path", default=os.environ.get("SRC", "./src"))
+    parser.add_argument("--firmware", "-f", type=str, help="firmware path", default=os.environ.get("FIRMWARE", "./firmware"))
+    parser.add_argument("--build", "-b", type=str, help="build folder", default=os.environ.get("BUILD", "./build"))
 
     args = parser.parse_args()
     args.source = Path(args.source)
     args.build = Path(args.build)
-    if args.firmware == "auto":
+    args.firmware = Path(args.firmware)
+    # firmware should be a folder or file name
+    if not args.firmware.exists():
+        log.error(f"firmware path {args.firmware} does not exist")
+        sys.exit(1)
+
+    if args.firmware.is_dir():
         prefix = args.port if args.port != "auto" else ""
-        args.firmware = next(Path("./firmware").glob(f"{prefix}*"))
-    else:
-        args.firmware = Path(args.firmware)
+        # get most recent file matching prefix
+        # TODO: this is not very robust as it depends on the file name format of the firmware
+        # esp32-20230426-v1.20.0.bin ~~ <port>-20*
+        firmware_files = list(args.firmware.glob(f"{prefix}-20*"))
+        if not firmware_files:
+            log.error(f"No firmware found for port '{args.port}' in {args.firmware}")
+            sys.exit(1)
+        firmware_file = max(firmware_files, key=lambda f: f.stat().st_mtime)
+        args.firmware = firmware_file
+
     return args
 
 
