@@ -1,5 +1,5 @@
 [wokwi]
 version = 1
-firmware = '../../build/pico_src.uf2'
+firmware = '../../build/firmware_lfs.uf2'
 elf = '../empty.elf'
 rfc2217ServerPort = 4000

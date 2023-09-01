@@ -11,6 +11,7 @@ Display information of the UF2 file.
 
 import argparse
 import ctypes
+import os
 import re
 import struct
 import subprocess
@@ -19,6 +20,7 @@ from collections import UserList
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
+from diskportinfo import port_info_list
 from loguru import logger as log
 from uf2conv import UF2_MAGIC_START0  # is_uf2,
 from uf2conv import UF2_MAGIC_END, UF2_MAGIC_START1, load_families
@@ -173,7 +175,7 @@ class UF2File(UserList):
     @property
     def family_id(self) -> int:
         """Return the family id of the first family found in the file"""
-        KNOWN_FAMILIES[self.family_str] if self.family_str in KNOWN_FAMILIES.keys() else 0
+        int(KNOWN_FAMILIES[self.family_str]) if self.family_str in KNOWN_FAMILIES.keys() else 0
 
     def __len__(self):
         return len(self.data)
@@ -371,14 +373,17 @@ class UF2File(UserList):
                 )
 
 
-def read_image(littlefs_img, firmware_uf2: UF2File) -> UF2File:
+def read_image(littlefs_img, firmware_uf2: UF2File, chunk_size=0) -> UF2File:
     """Read the contents of the littlefs_img file, create a new UF2File object, and iterate over the contents of the file in chunks of 256 bytes.
     For each chunk, create a new UF2Block object, set its properties, and append it to the UF2File object.
     Finally, set the numBlocks and blockNo properties of each block,  and returns it.
+
+    chunk_size = must be between 255 - UF2_DATA_SIZE
     """
-    CHUNK_SIZE = 256
-    CHUNK_SIZE = UF2_DATA_SIZE
-    assert CHUNK_SIZE <= UF2_DATA_SIZE
+    if not chunk_size:
+        chunk_size = UF2_DATA_SIZE
+    assert chunk_size <= UF2_DATA_SIZE
+
     log.info(f"Reading littlefs binary image from {littlefs_img}")
 
     with open(littlefs_img, "rb") as f:
@@ -387,8 +392,8 @@ def read_image(littlefs_img, firmware_uf2: UF2File) -> UF2File:
     start_addr = firmware_uf2.drive_start
 
     uf2_file = UF2File()
-    for i in range(0, len(littlefs_img), CHUNK_SIZE):
-        chunk = littlefs_img[i : i + CHUNK_SIZE]
+    for i in range(0, len(littlefs_img), chunk_size):
+        chunk = littlefs_img[i : i + chunk_size]
         block = UF2Block(chunk)
         block.flags = 0x0
         if familyid:
@@ -405,28 +410,25 @@ def read_image(littlefs_img, firmware_uf2: UF2File) -> UF2File:
     return uf2_file
 
 
-def main(
-    base: Path,
-    littlefs_img: Path,
-    out_path: Path,
-):
+def merge_uf2_littlefs(firmware_uf2: Path, littlefs_img: Path, out_path: Path, save_littlefs: bool = True, chunk_size=0):  # defaults to UF2_DATA_SIZE
     # Base file should be a firmware uf2 file
     base_uf2 = UF2File()
-    base_uf2.read_uf2(base)
+    base_uf2.read_uf2(firmware_uf2)
     base_uf2.add_bin_info()
     log.debug(base_uf2)
 
     littelfs_uf2 = None
     # read the littlefs image from build folder
     if littlefs_img and littlefs_img.exists():
-        littelfs_uf2 = read_image(littlefs_img, base_uf2)
+        littelfs_uf2 = read_image(littlefs_img, base_uf2, chunk_size)
 
-    # if littelfs_uf2:
-    #     # write to file
-    #     log.info(f"Writing {len(littelfs_uf2)} blocks to build\\littlefs.uf2")
-    #     with open("build\\littlefs.uf2", "wb") as f:
-    #         for block in littelfs_uf2:
-    #             f.write(block)
+    if littelfs_uf2 and save_littlefs:
+        vfs_path = out_path.with_suffix(".uf2")
+        # write to file
+        log.info(f"Writing {len(littelfs_uf2)} blocks to {vfs_path.name}")
+        with open(vfs_path, "wb") as f:
+            for block in littelfs_uf2:
+                f.write(block)
 
     if littelfs_uf2:
         # add the littlefs image to the uf2 file
@@ -448,6 +450,36 @@ def main(
                 f.write(block)
 
 
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--base", help="the path to the base UF2 file", required=False)
+    parser.add_argument("--littlefs_img", help="the path to the LittleFS image file", required=False)
+    parser.add_argument("--out_path", help="the path to the output UF2 file", required=False)
+    args = parser.parse_args()
+
+    # read from environment or defaults
+    base_path = os.environ.get(
+        "firmware_bin",
+        "firmware\\rp2-pico-20230426-v1.20.0.uf2",
+    )
+    littlefs_img_path = os.environ.get(
+        "littlefs_image",
+        "build\\littlefs.img",
+    )
+    out_path = os.environ.get(
+        "OUTPUT_PATH",
+        "build\\pico_src.uf2",
+    )
+
+    # override defaults with command line arguments
+    args.base = Path(args.base or base_path)
+    args.littlefs_img = Path(args.littlefs_img or littlefs_img_path)
+    args.out_path = Path(args.out_path or out_path)
+
+    log.debug(args)
+    return args
+
+
 if __name__ == "__main__":
     # setup logging
     log.remove()
@@ -455,16 +487,6 @@ if __name__ == "__main__":
 
     # commence
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--base", help="the path to the base UF2 file", required=False)
-    parser.add_argument("--littlefs_img", help="the path to the LittleFS image file", required=False)
-    parser.add_argument("--out_path", help="the path to the output UF2 file", required=False)
-    args = parser.parse_args()
+    args = parse_args()
 
-    log.debug(args)
-    # defaults
-    args.base = Path(args.base or "firmware\\rp2-pico-20230426-v1.20.0.uf2")
-    args.littlefs_img = Path(args.littlefs_img or "build\\littlefs.img")
-    args.out_path = Path(args.out_path or "build\\pico_src.uf2")
-
-    main(base=args.base, littlefs_img=args.littlefs_img, out_path=args.out_path)
+    merge_uf2_littlefs(firmware_uf2=args.base, littlefs_img=args.littlefs_img, out_path=args.out_path)

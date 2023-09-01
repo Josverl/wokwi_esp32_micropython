@@ -5,49 +5,15 @@
     "options": {
         "cwd": "${workspaceFolder}",
         "env": {
-            "PORT_BOARD": "rp2-pico",
-            "firmware_bin": "${workspaceFolder}/firmware/esp32-20230426-v1.20.0.bin",
-            "littlefs_image": "${workspaceFolder}/build/littlefs.img",
-            "firmware_lfs_bin": "${workspaceFolder}/build/firmware_lfs.bin",
+            "PORT": "rp2-pico",
         }
     },
     "tasks": [
         {
-            "label": "create_littlefs",
-            "detail": "Create littlefs image from files in the .\\src folder",
+            "label": "vfs_merge",
+            "detail": "create a littlefs image fromt thesrc and merge it into the firmware image",
             "type": "shell",
-            "windows": {
-                "command": "${command:python.interpreterPath} tools/create_littlefs.py"
-            },
-            "linux": {
-                "command": "python3 tools/create_littlefs.py"
-            },
-            "group": {
-                "kind": "build"
-            },
-            "problemMatcher": []
-        },
-        {
-            "label": "merge_littlefs_bin",
-            "detail": "esp32: Merge a littlefs image into a ESP32 firmware image",
-            "dependsOn": "create_littlefs",
-            "type": "shell",
-            "windows": {
-                "command": "esptool --chip esp32 merge_bin -o $env:firmware_lfs_bin --flash_mode dio --flash_size 4MB 0x1000 $env:firmware_bin 0x200000 $env:littlefs_image"
-            },
-            "linux": {
-                "command": "esptool.py --chip esp32 merge_bin -o ${firmware_lfs_bin} --flash_mode dio --flash_size 4MB 0x1000 ${firmware_bin} 0x200000 ${littlefs_image}"
-            },
-            "group": {
-                "kind": "build"
-            }
-        },
-        {
-            "label": "merge_littlefs_uf2",
-            "detail": "rp2-pico: Merge a littlefs image into a ESP32 firmware image",
-            "dependsOn": "create_littlefs",
-            "type": "shell",
-            "command": "${command:python.interpreterPath} tools/uf2_merge.py",
+            "command": "${command:python.interpreterPath} tools/vfs_merge.py",
             "group": {
                 "kind": "build"
             }
@@ -67,7 +33,7 @@
         {
             "label": "Start WokWi emulator",
             "detail": "Load the source files and (re)Start the WokWi emulator",
-            "dependsOn": "merge_littlefs_uf2",
+            "dependsOn": "vfs_merge",
             "command": "${command:wokwi-vscode.start}",
             "group": {
                 "kind": "build",
