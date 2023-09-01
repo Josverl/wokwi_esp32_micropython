@@ -1,5 +1,4 @@
-
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List
 
 VFS_LFS1 = 0x0001_0000
@@ -7,19 +6,32 @@ VFS_LFS2 = 0x0002_0000
 
 VFLASH_BLOCK_SIZE = 4096
 
+
 @dataclass
 class PortDiskInfo:
     name: str
-    page_size: int
-    block_size: int
-    block_count: int
-    image_size: int = -1
+    page_size: int = 256
+    block_size: int = VFLASH_BLOCK_SIZE
+    block_count: int = 0
+    start_address: int = 0
+    end_address: int = 0
+    image_size: int = field(init=False)
+
     vfstype: int = VFS_LFS2
 
     def __post_init__(self):
+        assert self.block_size > 0, "block_size must be > 0"
+        assert self.page_size > 0, "page_size must be > 0"
         # CALC image size
-        if self.image_size == -1:
+        if self.start_address and self.end_address:
+            self.image_size = self.end_address - self.start_address
+            self.block_count = self.image_size // self.block_size
+        elif self.block_count:
             self.image_size = self.block_size * self.block_count
+        assert self.image_size > 0, "image_size must be > 0"
+        assert self.block_count > 0, "block_count must be > 0"
+        assert self.start_address, "drive start_address must be provided"
+
 
 # rp2_common
 FLASH_PAGE_SIZE = 256
@@ -28,11 +40,12 @@ FLASH_SECTOR_SIZE = 4096  # :=> LittleFS Block
 
 
 port_info_list: List[PortDiskInfo] = [
-    PortDiskInfo("esp32-generic", 256, VFLASH_BLOCK_SIZE, 512),
-    PortDiskInfo("esp8266-generic", 256, VFLASH_BLOCK_SIZE, 512),
-    PortDiskInfo("rp2-pico", 256, VFLASH_BLOCK_SIZE, 352),  # pico  = 0x100a0000-0x10200000 (1408K):
-    PortDiskInfo("rp2-pico-w", 256, VFLASH_BLOCK_SIZE, 208),
-    # PortDiskInfo("pimoroni_picolipo_16mb", 256, VFLASH_BLOCK_SIZE, 3840), # 0x10100000-0x11000000 (15360K)
+    PortDiskInfo("esp32-generic", start_address=0x20_0000, end_address=0x40_0000),
+    PortDiskInfo("rp2-pico", start_address=0x100A_0000, end_address=0x1020_0000),  # (1408K):
+    PortDiskInfo("rp2-pico-w", start_address=0x1012_C000, end_address=0x1020_0000),  # pico_w = 0x1012c000-0x10200000 (848K)
+    PortDiskInfo("pimoroni_picolipo_16mb", start_address=0x1010_0000, end_address=0x1100_0000)
+    # pimoroni_picolipo_16mb = 0x10100000-0x11000000 (15360K)
+    # PortDiskInfo("esp8266-generic", 256, VFLASH_BLOCK_SIZE, 512),
     # PortDiskInfo("SAMD", 1536, VFLASH_BLOCK_SIZE, 512),
 ]
 
