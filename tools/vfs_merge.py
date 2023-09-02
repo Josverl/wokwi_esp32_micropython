@@ -7,6 +7,7 @@ from pathlib import Path
 
 from create_littlefs import folder_to_lfs
 from diskportinfo import port_info_list
+from dotenv import load_dotenv
 from loguru import logger as log
 from uf2_merge import merge_uf2_littlefs
 
@@ -117,6 +118,7 @@ def main(source_path: Path, firmware_path: Path, port: str, build_path: Path):
 
 
 def parse_cmdline():
+    load_dotenv()
     parser = argparse.ArgumentParser(description="Merge source code and firmware into a single file.")
     parser.add_argument("--port", "-p", type=str, help="port", default=os.environ.get("PORT", "auto"))
     parser.add_argument("--source", "-s", type=str, help="source folder path", default=os.environ.get("SRC", "./src"))

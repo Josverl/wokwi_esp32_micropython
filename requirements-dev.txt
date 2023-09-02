@@ -1,4 +1,5 @@
 loguru ~= 0.7.0
+python-dotenv
 
 # Filesystem
 littlefs-python ~= 0.6.2

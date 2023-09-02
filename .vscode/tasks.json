@@ -4,14 +4,11 @@
     "version": "2.0.0",
     "options": {
         "cwd": "${workspaceFolder}",
-        "env": {
-            "PORT": "rp2-pico-w",
-        }
     },
     "tasks": [
         {
             "label": "vfs_merge",
-            "detail": "create a littlefs image fromt thesrc and merge it into the firmware image",
+            "detail": "create a littlefs image from the srcs folder and merge it into the firmware image",
             "type": "shell",
             "command": "${command:python.interpreterPath} tools/vfs_merge.py",
             "group": {
@@ -19,7 +16,7 @@
             }
         },
         {
-            "label": "upload via mpremote",
+            "label": "mpremote_upload",
             "detail": "Upload the source to the board via mpremote, import boot and main",
             "type": "shell",
             "command": "${command:python.interpreterPath}",
