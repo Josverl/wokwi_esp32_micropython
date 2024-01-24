@@ -6,13 +6,13 @@ import sys
 from pathlib import Path
 
 from create_littlefs import folder_to_lfs
-from diskportinfo import port_info_list
 from dotenv import load_dotenv
 from loguru import logger as log
-from uf2_merge import merge_uf2_littlefs
+from portboard_disk import port_info_list
+from uf2_tool import merge_uf2_littlefs
 
 
-def get_disk_info(port: str):
+def get_disk_info(port: str):  # sourcery skip: use-next
     """Return the disk info for the given port name."""
     for port_info in port_info_list:
         if port_info.name == port:
@@ -120,10 +120,10 @@ def main(source_path: Path, firmware_path: Path, port: str, build_path: Path):
 def parse_cmdline():
     load_dotenv()
     parser = argparse.ArgumentParser(description="Merge source code and firmware into a single file.")
-    parser.add_argument("--port", "-p", type=str, help="port", default=os.environ.get("PORT", "auto"))
+    parser.add_argument("--port", "-p", type=str, help="MicroPython port", default=os.environ.get("PORT", "auto"))
     parser.add_argument("--source", "-s", type=str, help="source folder path", default=os.environ.get("SRC", "./src"))
     parser.add_argument("--firmware", "-f", type=str, help="firmware path", default=os.environ.get("FIRMWARE", "./firmware"))
-    parser.add_argument("--build", "-b", type=str, help="build folder", default=os.environ.get("BUILD", "./build"))
+    parser.add_argument("--build", "-B", type=str, help="build folder", default=os.environ.get("BUILD", "./build"))
 
     args = parser.parse_args()
     args.source = Path(args.source)
@@ -131,15 +131,16 @@ def parse_cmdline():
     args.firmware = Path(args.firmware)
     # firmware should be a folder or file name
     if not args.firmware.exists():
+        # TODO , support * in file name
         log.error(f"firmware path {args.firmware} does not exist")
         sys.exit(1)
 
     if args.firmware.is_dir():
         prefix = args.port if args.port != "auto" else ""
         # get most recent file matching prefix
-        # TODO: this is not very robust as it depends on the file name format of the firmware
+        # todo: this is not very robust as it depends on the file name format of the firmware
         # esp32-20230426-v1.20.0.bin ~~ <port>-20*
-        firmware_files = list(args.firmware.glob(f"{prefix}-20*"))
+        firmware_files = list(args.firmware.glob(f"{prefix}*-20*"))
         if not firmware_files:
             log.error(f"No firmware found for port '{args.port}' in {args.firmware}")
             sys.exit(1)
@@ -156,3 +157,11 @@ if __name__ == "__main__":
     # go
     args = parse_cmdline()
     main(args.source, args.firmware, args.port, args.build)
+
+# TODO: test on linux
+# TODO:  add -verbose option to control logging
+# Low PRIO
+# todo: test with rp2* ports that are not in the list
+# todo: add support for esp32-s2 and other boards
+# todo: add support for FAT filesystems
+# https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/api-reference/storage/fatfsgen.html?highlight=checksum#fatfsgen-py

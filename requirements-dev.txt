@@ -9,7 +9,7 @@ esptool ~= 4.6.0
 
 
 # rfc2217 serial over tcp 
-mpremote ~= 1.20.0.post349+ged5bed995.d20230811
+mpremote >= 1.21.0
 
 
 # micropython type stubs

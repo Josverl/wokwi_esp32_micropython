@@ -15,18 +15,6 @@
             "miDebuggerServerAddress": "localhost:3333"
         },
         {
-            "name": "CPython: Current File",
-            "type": "python",
-            "request": "launch",
-            "program": "${file}",
-            "cwd": "${workspaceFolder}",
-            "args": [
-                // "firmware\\SEEED_WIO_TERMINAL-20230426-v1.20.0.uf2",
-            ],
-            "console": "integratedTerminal",
-            "justMyCode": true,
-        },
-        {
             "name": "pico-w",
             "type": "python",
             "request": "launch",
@@ -48,6 +36,28 @@
             ],
             "console": "integratedTerminal",
             "justMyCode": true,
+        },
+        {
+            "name": "CPython: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                // "info",
+                "merge",
+                "firmware\\rp2-pico-20230426-v1.20.0.uf2",
+                // "firmware\\SEEED_WIO_TERMINAL-20230426-v1.20.0.uf2",
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true,
+        },
+        {
+            "name": "Python: Module",
+            "type": "python",
+            "request": "launch",
+            "module": "tools.vfs_merge",
+            "justMyCode": true
         },
     ]
 }

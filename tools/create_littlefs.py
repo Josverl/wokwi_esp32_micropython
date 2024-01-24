@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 import argparse
 import os
 import sys
@@ -5,9 +6,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List
 
-from diskportinfo import VFLASH_BLOCK_SIZE, VFS_LFS1, VFS_LFS2, port_info_list
 from littlefs import LittleFS
 from loguru import logger as log
+from portboard_disk import (VFLASH_BLOCK_SIZE, VFS_LFS1, VFS_LFS2,
+                            port_info_list)
 
 
 def folder_to_lfs(
